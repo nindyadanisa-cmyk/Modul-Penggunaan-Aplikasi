@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Pantau Tumbuh Kembang</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <style>
+        body {
+            background-color: #f3f4f6;
+        }
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans leading-normal tracking-normal">
+
+    <div id="authContainer" class="min-h-screen flex items-center justify-center p-4" style="display: none;">
+    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+        <h2 class="text-2xl font-bold text-center mb-6 text-pink-600">Selamat Datang di Pantau Tumbuh Kembang Anak</h2>
+        <form id="authForm" class="w-full max-w-sm mx-auto">
+            <div class="mb-4">
+    <label class="block text-gray-700 text-sm font-bold mb-2" for="authEmail">Email</label>
+    <div class="relative">
+        <i class="fas fa-envelope text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2"></i>
+        <input class="shadow appearance-none border rounded w-full py-2 pl-10 pr-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="authEmail" type="email" placeholder="email@example.com">
+    </div>
+</div>
+
+<div class="mb-6">
+    <label class="block text-gray-700 text-sm font-bold mb-2" for="authPassword">Password</label>
+    <div class="relative">
+        <i class="fas fa-lock text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2"></i>
+        <input class="shadow appearance-none border rounded w-full py-2 pl-10 pr-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline" id="authPassword" type="password" placeholder="********">
+    </div>
+</div>
+            <div class="flex items-center justify-between">
+                <button class="bg-pink-500 hover:bg-pink-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" id="loginBtn" type="submit">
+                    Login
+                </button>
+                <button class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" id="registerBtn" type="button">
+                    Register
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+    <div id="appContent" class="container mx-auto p-4" style="display: none;">
+        <button id="chatbot-toggle" class="fixed bottom-6 right-6 bg-pink-500 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg hover:bg-pink-600 transition-colors duration-200 z-50">
+    <i class="fas fa-robot text-2xl"></i>
+</button>
+
+<div id="chatbot-window" class="fixed bottom-24 right-6 w-80 h-[400px] bg-white rounded-lg shadow-xl flex flex-col z-50 transform scale-0 origin-bottom-right transition-transform duration-300">
+    <div class="bg-purple-600 text-white p-4 rounded-t-lg flex justify-between items-center">
+        <h3 class="font-bold">Anak Sehat AI</h3>
+        <button id="chatbot-close" class="text-white hover:text-gray-200">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div id="chatbot-messages" class="flex-grow p-4 overflow-y-auto space-y-4">
+        </div>
+    <div class="p-4 border-t">
+        <div class="flex space-x-2">
+            <input type="text" id="chatbot-input" class="flex-grow p-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Ketik pertanyaan Anda...">
+            <button id="chatbot-send" class="bg-purple-500 text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-purple-600 transition-colors duration-200">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+</div>
+<header class="flex justify-between items-center py-4 px-6 bg-white shadow-md rounded-b-lg">
+            <div>
+                <h1 class="text-2xl font-bold text-pink-600">Pantau Tumbuh Kembang</h1>
+                <p class="text-sm text-gray-500">Dashboard Tumbuh Kembang Anak</p>
+            </div>
+            <div class="text-right">
+                <p class="text-sm text-gray-600">Halo, <span id="userEmailSpan" class="font-semibold"></span></p>
+                <a href="#" id="logoutLink" class="text-sm text-pink-500 hover:underline">Logout</a>
+            </div>
+        </header>
+
+        <div class="mt-6 p-4 bg-white shadow-md rounded-lg flex items-center space-x-4">
+            <label for="selected-child-id" class="font-medium text-gray-700 flex items-center">
+                <i class="fas fa-child text-pink-500 mr-2"></i> Pilih Anak:
+            </label>
+            <select id="selected-child-id" class="flex-grow p-2 border rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500">
+                <option value="">Pilih Anak</option>
+            </select>
+        </div>
+        
+        <div class="flex mt-6 overflow-x-auto whitespace-nowrap">
+            <button id="tab-input-anak" class="tab-button bg-white text-gray-500 hover:text-gray-700 py-3 px-6 text-sm md:text-base border border-b-0 rounded-t-lg shadow-md transition-colors duration-200">
+                Input Anak
+            </button>
+            <button id="tab-input-antropometri" class="tab-button bg-white text-gray-500 hover:text-gray-700 py-3 px-6 text-sm md:text-base border border-b-0 rounded-t-lg shadow-md transition-colors duration-200">
+                Input Antropometri
+            </button>
+            <button id="tab-grafik" class="tab-button bg-white text-gray-500 hover:text-gray-700 py-3 px-6 text-sm md:text-base border border-b-0 rounded-t-lg shadow-md transition-colors duration-200">
+                Grafik & Status Gizi
+            </button>
+            <button id="tab-milestone" class="tab-button bg-white text-gray-500 hover:text-gray-700 py-3 px-6 text-sm md:text-base border border-b-0 rounded-t-lg shadow-md transition-colors duration-200">
+                Milestone Perkembangan
+            </button>
+            <button id="tab-edukasi" class="tab-button bg-white text-gray-500 hover:text-gray-700 py-3 px-6 text-sm md:text-base border border-b-0 rounded-t-lg shadow-md transition-colors duration-200">
+                Edukasi
+            </button>
+            <button id="tab-daftar-anak" class="tab-button hidden bg-white text-gray-500 hover:text-gray-700 py-3 px-6 text-sm md:text-base border border-b-0 rounded-t-lg shadow-md transition-colors duration-200">
+                Daftar Semua Anak
+            </button>
+        </div>
+
+        <main class="bg-white p-6 rounded-lg shadow-md mt-0" style="border-top-left-radius: 0;">
+
+            <div id="page-input-anak" class="tab-content" style="display: block;">
+                <h2 class="text-2xl font-semibold mb-4 text-pink-600">Tambah Data Anak</h2>
+                <form id="child-data-form" class="space-y-4">
+                    <div>
+                        <label for="nama-anak" class="block text-gray-700 font-medium">Nama Anak</label>
+                        <input type="text" id="nama-anak" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-pink-500 focus:ring focus:ring-pink-500 focus:ring-opacity-50" required>
+                    </div>
+                    <div>
+                        <label for="tanggal-lahir" class="block text-gray-700 font-medium">Tanggal Lahir</label>
+                        <input type="date" id="tanggal-lahir" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-pink-500 focus:ring focus:ring-pink-500 focus:ring-opacity-50" required>
+                    </div>
+                    <div>
+                        <label for="jenis-kelamin" class="block text-gray-700 font-medium">Jenis Kelamin</label>
+                        <select id="jenis-kelamin" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-pink-500 focus:ring focus:ring-pink-500 focus:ring-opacity-50" required>
+                            <option value="">Pilih</option>
+                            <option value="Laki-laki">Laki-laki</option>
+                            <option value="Perempuan">Perempuan</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200">Simpan</button>
+                </form>
+            </div>
+
+            <div id="page-input-antropometri" class="tab-content hidden">
+                <h2 class="text-2xl font-semibold mb-4 text-pink-600">Input Data Antropometri</h2>
+                <form id="antropometri-form" class="space-y-4">
+                    <div>
+                        <label for="tanggal-pengukuran" class="block text-gray-700 font-medium">Tanggal Pengukuran</label>
+                        <input type="date" id="tanggal-pengukuran" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-pink-500 focus:ring focus:ring-pink-500 focus:ring-opacity-50" required>
+                    </div>
+                    <div>
+                        <label for="berat-badan" class="block text-gray-700 font-medium">Berat Badan (kg)</label>
+                        <input type="number" step="0.01" id="berat-badan" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-pink-500 focus:ring focus:ring-pink-500 focus:ring-opacity-50" required>
+                    </div>
+                    <div>
+                        <label for="tinggi-badan" class="block text-gray-700 font-medium">Tinggi/Panjang Badan (cm)</label>
+                        <input type="number" step="0.1" id="tinggi-badan" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-pink-500 focus:ring focus:ring-pink-500 focus:ring-opacity-50" required>
+                    </div>
+                    <div>
+                        <label for="lingkar-kepala" class="block text-gray-700 font-medium">Lingkar Kepala (cm)</label>
+                        <input type="number" step="0.1" id="lingkar-kepala" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-pink-500 focus:ring focus:ring-pink-500 focus:ring-opacity-50">
+                    </div>
+                    <button type="submit" class="w-full bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200">Simpan Pengukuran</button>
+                </form>
+            </div>
+
+            <div id="page-grafik" class="tab-content hidden">
+                <h2 class="text-2xl font-semibold mb-4 text-pink-600">Grafik Pertumbuhan & Status Gizi</h2>
+                <div id="loading-spinner" class="text-center p-4">
+                    <i class="fas fa-spinner spinner text-pink-500 text-2xl"></i>
+                    <p class="mt-2 text-gray-500">Memuat data grafik...</p>
+                </div>
+                <div id="charts-container" class="space-y-6 hidden">
+                    <div class="bg-gray-50 p-4 rounded-lg shadow-inner">
+                        <p class="text-gray-700 font-medium">Status Gizi Terbaru:</p>
+                        <p id="status-gizi-text" class="text-gray-600 mt-2 text-sm"></p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg shadow-inner">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">Grafik Berat & Tinggi Badan</h3>
+                        <div class="h-80"><canvas id="growthChart"></canvas></div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg shadow-inner">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">Grafik Z-Score</h3>
+                        <div class="h-80"><canvas id="zscoreChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-milestone" class="tab-content hidden">
+                <h2 class="text-2xl font-semibold mb-4 text-pink-600">Milestone Perkembangan</h2>
+                <div id="milestone-status-info" class="p-4 rounded-md bg-gray-100 text-gray-700">
+                    <i class="fas fa-info-circle mr-2"></i> Pilih anak untuk melihat dan mencatat pencapaiannya.
+                </div>
+                <div id="milestone-progress-summary" class="mt-4 p-4 font-semibold rounded-md hidden"></div>
+                <div id="milestone-list" class="mt-4 space-y-3"></div>
+                <div id="milestone-education-content" class="mt-6 p-4 bg-gray-50 rounded-lg shadow-inner text-gray-700"></div>
+            </div>
+
+            <div id="page-edukasi" class="tab-content hidden">
+                <h2 class="text-2xl font-semibold mb-4 text-pink-600">Edukasi Gizi</h2>
+                <div id="edukasi-content" class="space-y-4">
+                    <p class="p-4 bg-gray-50 rounded-md text-gray-700"><i class="fas fa-info-circle mr-2"></i>Pilih anak untuk mendapatkan rekomendasi edukasi gizi.</p>
+                </div>
+            </div>
+
+            <div id="page-daftar-anak" class="tab-content hidden">
+                <h2 class="text-2xl font-semibold mb-4 text-pink-600">Daftar Semua Anak</h2>
+                <div id="child-list" class="space-y-2 p-4 bg-gray-50 rounded-lg shadow-inner">
+                    </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+      // // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyDvoViWbLQTBSdZcNymqxpgTj7NlFyCgQQ",
+  authDomain: "aplikasi-pemantau-gizi.firebaseapp.com",
+  projectId: "aplikasi-pemantau-gizi",
+  storageBucket: "aplikasi-pemantau-gizi.firebasestorage.app",
+  messagingSenderId: "944029860424",
+  appId: "1:944029860424:web:28b396ca5fcd45a73e0e7d",
+  measurementId: "G-6W2G8D04XK"
+};
+
+      // Inisialisasi Firebase
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+      const auth = firebase.auth();
+// NEW: Chatbot Functionality
+const chatbotToggleBtn = document.getElementById('chatbot-toggle');
+const chatbotWindow = document.getElementById('chatbot-window');
+const chatbotCloseBtn = document.getElementById('chatbot-close');
+const chatbotMessages = document.getElementById('chatbot-messages');
+const chatbotInput = document.getElementById('chatbot-input');
+const chatbotSendBtn = document.getElementById('chatbot-send');
+
+chatbotToggleBtn.addEventListener('click', () => {
+    chatbotWindow.classList.toggle('scale-0');
+});
+
+chatbotCloseBtn.addEventListener('click', () => {
+    chatbotWindow.classList.add('scale-0');
+});
+
+function addMessageToChat(message, sender) {
+    const messageDiv = document.createElement('div');
+    messageDiv.classList.add('p-3', 'rounded-lg', 'max-w-[80%]');
+    
+    if (sender === 'user') {
+        messageDiv.classList.add('bg-pink-200', 'self-end', 'ml-auto');
+    } else {
+        messageDiv.classList.add('bg-gray-200', 'self-start');
+    }
+    
+    messageDiv.textContent = message;
+    chatbotMessages.appendChild(messageDiv);
+    chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+}
+
+// Logic untuk mengirim pesan
+chatbotSendBtn.addEventListener('click', () => {
+    const userMessage = chatbotInput.value.trim();
+    if (userMessage) {
+        addMessageToChat(userMessage, 'user');
+        chatbotInput.value = '';
+        
+        const lowerCaseMessage = userMessage.toLowerCase();
+        
+        // Letakkan kondisi spesifik di sini (di paling atas)
+        if (lowerCaseMessage.includes('perkembangan') && (lowerCaseMessage.includes('tidak sesuai') || lowerCaseMessage.includes('umur'))) {
+            addMessageToChat('Jika Anda khawatir tentang perkembangan anak yang tidak sesuai usianya, disarankan untuk berkonsultasi dengan dokter anak atau ahli tumbuh kembang untuk evaluasi lebih lanjut dan saran yang tepat.', 'bot');
+        } 
+        // Kemudian, letakkan kondisi yang lebih umum di bawahnya
+        else if (lowerCaseMessage.includes('perkembangan anak')) {
+            addMessageToChat('Perkembangan anak meliputi motorik kasar, motorik halus, kognitif, dan sosial emosional. Berikan stimulasi yang sesuai usianya.', 'bot');
+        } else if (lowerCaseMessage.includes('gizi')) {
+            addMessageToChat('Gizi anak sangat penting untuk tumbuh kembang. Pastikan anak mendapatkan protein, vitamin, dan mineral yang cukup dari makanan bergizi.', 'bot');
+        } else if (lowerCaseMessage.includes('imunisasi')) {
+            addMessageToChat('Imunisasi membantu melindungi anak dari berbagai penyakit serius. Ikuti jadwal imunisasi yang direkomendasikan.', 'bot');
+        } 
+        // Respons jika tidak ada kata kunci yang cocok
+        else {
+            addMessageToChat('Maaf, saya belum mengerti pertanyaan Anda. Coba tanyakan tentang gizi, perkembangan anak, atau imunisasi.', 'bot');
+        }
+    }
+});
+
+chatbotInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        chatbotSendBtn.click();
+    }
+});
+      // Data WHO Z-score (sudah dikoreksi)
+      const whoData = {
+        'Laki-laki': {
+          'bbu': {
+            '0': {L: -0.198, M: 3.238, S: 0.528}, '1': {L: -0.198, M: 4.414, S: 0.536}, '2': {L: -0.197, M: 5.617, S: 0.547}, '3': {L: -0.195, M: 6.423, S: 0.553}, '4': {L: -0.193, M: 7.062, S: 0.557}, '5': {L: -0.191, M: 7.595, S: 0.559}, '6': {L: -0.189, M: 8.053, S: 0.560}, '7': {L: -0.187, M: 8.455, S: 0.560}, '8': {L: -0.185, M: 8.814, S: 0.560}, '9': {L: -0.183, M: 9.141, S: 0.559}, '10': {L: -0.182, M: 9.444, S: 0.557}, '11': {L: -0.180, M: 9.728, S: 0.555}, '12': {L: -0.179, M: 9.998, S: 0.553}, '13': {L: -0.178, M: 10.258, S: 0.550}, '14': {L: -0.176, M: 10.510, S: 0.547}, '15': {L: -0.175, M: 10.755, S: 0.544}, '16': {L: -0.174, M: 10.995, S: 0.540}, '17': {L: -0.173, M: 11.231, S: 0.537}, '18': {L: -0.172, M: 11.464, S: 0.533}, '19': {L: -0.171, M: 11.694, S: 0.529}, '20': {L: -0.170, M: 11.921, S: 0.525}, '21': {L: -0.169, M: 12.146, S: 0.522}, '22': {L: -0.168, M: 12.368, S: 0.518}, '23': {L: -0.167, M: 12.587, S: 0.514}, '24': {L: -0.167, M: 12.803, S: 0.510}, '25': {L: -0.166, M: 13.016, S: 0.506}, '26': {L: -0.165, M: 13.226, S: 0.502}, '27': {L: -0.164, M: 13.434, S: 0.498}, '28': {L: -0.164, M: 13.639, S: 0.494}, '29': {L: -0.163, M: 13.841, S: 0.490}, '30': {L: -0.162, M: 14.041, S: 0.486}, '31': {L: -0.162, M: 14.238, S: 0.482}, '32': {L: -0.161, M: 14.433, S: 0.478}, '33': {L: -0.161, M: 14.625, S: 0.474}, '34': {L: -0.160, M: 14.815, S: 0.470}, '35': {L: -0.160, M: 15.003, S: 0.466}, '36': {L: -0.159, M: 15.188, S: 0.462}, '37': {L: -0.159, M: 15.371, S: 0.458}, '38': {L: -0.158, M: 15.552, S: 0.454}, '39': {L: -0.158, M: 15.731, S: 0.450}, '40': {L: -0.158, M: 15.908, S: 0.446}, '41': {L: -0.157, M: 16.082, S: 0.442}, '42': {L: -0.157, M: 16.255, S: 0.438}, '43': {L: -0.156, M: 16.425, S: 0.434}, '44': {L: -0.156, M: 16.594, S: 0.430}, '45': {L: -0.156, M: 16.760, S: 0.426}, '46': {L: -0.155, M: 16.924, S: 0.422}, '47': {L: -0.155, M: 17.087, S: 0.418}, '48': {L: -0.154, M: 17.247, S: 0.414}, '49': {L: -0.154, M: 17.406, S: 0.410}, '50': {L: -0.154, M: 17.562, S: 0.406}, '51': {L: -0.153, M: 17.717, S: 0.402}, '52': {L: -0.153, M: 17.870, S: 0.398}, '53': {L: -0.153, M: 18.021, S: 0.394}, '54': {L: -0.152, M: 18.170, S: 0.390}, '55': {L: -0.152, M: 18.318, S: 0.386}, '56': {L: -0.152, M: 18.464, S: 0.382}, '57': {L: -0.151, M: 18.608, S: 0.378}, '58': {L: -0.151, M: 18.750, S: 0.374}, '59': {L: -0.151, M: 18.891, S: 0.370}, '60': {L: -0.150, M: 19.030, S: 0.366},
+          },
+          'pbu': {
+            '0': {L: -0.063, M: 49.9, S: 0.283}, '1': {L: -0.052, M: 54.7, S: 0.266}, '2': {L: -0.040, M: 58.4, S: 0.250}, '3': {L: -0.030, M: 61.4, S: 0.237}, '4': {L: -0.021, M: 63.9, S: 0.226}, '5': {L: -0.013, M: 65.9, S: 0.217}, '6': {L: -0.005, M: 67.6, S: 0.209}, '7': {L: 0.002, M: 69.2, S: 0.202}, '8': {L: 0.008, M: 70.6, S: 0.196}, '9': {L: 0.014, M: 72.0, S: 0.190}, '10': {L: 0.020, M: 73.3, S: 0.185}, '11': {L: 0.026, M: 74.5, S: 0.180}, '12': {L: 0.031, M: 75.7, S: 0.176}, '13': {L: 0.036, M: 76.9, S: 0.171}, '14': {L: 0.040, M: 78.0, S: 0.167}, '15': {L: 0.044, M: 79.1, S: 0.163}, '16': {L: 0.048, M: 80.2, S: 0.159}, '17': {L: 0.051, M: 81.2, S: 0.155}, '18': {L: 0.054, M: 82.3, S: 0.151}, '19': {L: 0.057, M: 83.2, S: 0.138}, '20': {L: 0.060, M: 84.2, S: 0.144}, '21': {L: 0.062, M: 85.2, S: 0.141}, '22': {L: 0.064, M: 86.1, S: 0.138}, '23': {L: 0.066, M: 87.0, S: 0.135},
+          },
+          'tbu': {
+            '24': {L: 0.068, M: 87.9, S: 0.132}, '25': {L: 0.069, M: 88.8, S: 0.129}, '26': {L: 0.071, M: 89.7, S: 0.126}, '27': {L: 0.072, M: 90.6, S: 0.123}, '28': {L: 0.073, M: 91.4, S: 0.120}, '29': {L: 0.075, M: 92.2, S: 0.117}, '30': {L: 0.076, M: 93.0, S: 0.114}, '31': {L: 0.077, M: 93.8, S: 0.112}, '32': {L: 0.078, M: 94.6, S: 0.110}, '33': {L: 0.079, M: 95.4, S: 0.108}, '34': {L: 0.080, M: 96.1, S: 0.106}, '35': {L: 0.081, M: 96.9, S: 0.104}, '36': {L: 0.082, M: 97.6, S: 0.102}, '37': {L: 0.083, M: 98.3, S: 0.100}, '38': {L: 0.083, M: 99.0, S: 0.098}, '39': {L: 0.084, M: 99.7, S: 0.096}, '40': {L: 0.085, M: 100.3, S: 0.094}, '41': {L: 0.085, M: 101.0, S: 0.092}, '42': {L: 0.086, M: 101.6, S: 0.090}, '43': {L: 0.086, M: 102.3, S: 0.089}, '44': {L: 0.087, M: 102.9, S: 0.087}, '45': {L: 0.087, M: 103.5, S: 0.086}, '46': {L: 0.088, M: 104.1, S: 0.084}, '47': {L: 0.088, M: 104.7, S: 0.083}, '48': {L: 0.088, M: 105.3, S: 0.081}, '49': {L: 0.089, M: 105.9, S: 0.080}, '50': {L: 0.089, M: 106.5, S: 0.079}, '51': {L: 0.089, M: 107.0, S: 0.077}, '52': {L: 0.090, M: 107.6, S: 0.076}, '53': {L: 0.090, M: 108.2, S: 0.075}, '54': {L: 0.090, M: 108.7, S: 0.073}, '55': {L: 0.090, M: 109.3, S: 0.072}, '56': {L: 0.090, M: 109.8, S: 0.071}, '57': {L: 0.091, M: 110.4, S: 0.070}, '58': {L: 0.091, M: 110.9, S: 0.069}, '59': {L: 0.091, M: 111.4, S: 0.068}, '60': {L: 0.091, M: 112.0, S: 0.067},
+          },
+        },
+        'Perempuan': {
+          'bbu': {
+            '0': {L: -0.320, M: 3.014, S: 0.528}, '1': {L: -0.316, M: 4.195, S: 0.527}, '2': {L: -0.312, M: 5.378, S: 0.526}, '3': {L: -0.309, M: 6.136, S: 0.524}, '4': {L: -0.306, M: 6.702, S: 0.521}, '5': {L: -0.303, M: 7.170, S: 0.518}, '6': {L: -0.301, M: 7.570, S: 0.515}, '7': {L: -0.298, M: 7.925, S: 0.512}, '8': {L: -0.296, M: 8.243, S: 0.509}, '9': {L: -0.294, M: 8.536, S: 0.506}, '10': {L: -0.292, M: 8.809, S: 0.502}, '11': {L: -0.291, M: 9.066, S: 0.499}, '12': {L: -0.289, M: 9.314, S: 0.495}, '13': {L: -0.288, M: 9.554, S: 0.492}, '14': {L: -0.286, M: 9.787, S: 0.488}, '15': {L: -0.285, M: 10.016, S: 0.484}, '16': {L: -0.284, M: 10.240, S: 0.480}, '17': {L: -0.283, M: 10.460, S: 0.476}, '18': {L: -0.282, M: 10.677, S: 0.472}, '19': {L: -0.281, M: 10.892, S: 0.468}, '20': {L: -0.280, M: 11.104, S: 0.464}, '21': {L: -0.279, M: 11.314, S: 0.460}, '22': {L: -0.278, M: 11.521, S: 0.456}, '23': {L: -0.277, M: 11.725, S: 0.452}, '24': {L: -0.277, M: 11.927, S: 0.448}, '25': {L: -0.276, M: 12.126, S: 0.444}, '26': {L: -0.275, M: 12.322, S: 0.440}, '27': {L: -0.275, M: 12.516, S: 0.436}, '28': {L: -0.274, M: 12.707, S: 0.432}, '29': {L: -0.273, M: 12.896, S: 0.428}, '30': {L: -0.273, M: 13.082, S: 0.424}, '31': {L: -0.272, M: 13.267, S: 0.420}, '32': {L: -0.272, M: 13.449, S: 0.416}, '33': {L: -0.271, M: 13.629, S: 0.412}, '34': {L: -0.271, M: 13.807, S: 0.408}, '35': {L: -0.270, M: 13.984, S: 0.404}, '36': {L: -0.270, M: 14.158, S: 0.400}, '37': {L: -0.270, M: 14.331, S: 0.396}, '38': {L: -0.269, M: 14.502, S: 0.392}, '39': {L: -0.269, M: 14.671, S: 0.388}, '40': {L: -0.268, M: 14.838, S: 0.384}, '41': {L: -0.268, M: 15.004, S: 0.380}, '42': {L: -0.268, M: 15.168, S: 0.376}, '43': {L: -0.267, M: 15.330, S: 0.372}, '44': {L: -0.267, M: 15.490, S: 0.368}, '45': {L: -0.267, M: 15.649, S: 0.364}, '46': {L: -0.266, M: 15.806, S: 0.360}, '47': {L: -0.266, M: 15.961, S: 0.356}, '48': {L: -0.266, M: 16.115, S: 0.352}, '49': {L: -0.265, M: 16.267, S: 0.348}, '50': {L: -0.265, M: 16.417, S: 0.344}, '51': {L: -0.265, M: 16.566, S: 0.340}, '52': {L: -0.264, M: 16.713, S: 0.336}, '53': {L: -0.264, M: 16.858, S: 0.332}, '54': {L: -0.264, M: 17.002, S: 0.328}, '55': {L: -0.263, M: 17.144, S: 0.324}, '56': {L: -0.263, M: 17.285, S: 0.320}, '57': {L: -0.263, M: 17.424, S: 0.316}, '58': {L: -0.262, M: 17.561, S: 0.312}, '59': {L: -0.262, M: 17.697, S: 0.308}, '60': {L: -0.262, M: 17.832, S: 0.304},
+          },
+          'pbu': {
+            '0': {L: -0.051, M: 49.1, S: 0.280}, '1': {L: -0.041, M: 53.7, S: 0.261}, '2': {L: -0.033, M: 57.1, S: 0.245}, '3': {L: -0.024, M: 59.9, S: 0.232}, '4': {L: -0.017, M: 62.1, S: 0.221}, '5': {L: -0.011, M: 64.0, S: 0.211}, '6': {L: -0.005, M: 65.7, S: 0.203}, '7': {L: 0.000, M: 67.3, S: 0.196}, '8': {L: 0.005, M: 68.7, S: 0.189}, '9': {L: 0.010, M: 70.1, S: 0.183}, '10': {L: 0.014, M: 71.4, S: 0.178}, '11': {L: 0.018, M: 72.6, S: 0.173}, '12': {L: 0.022, M: 73.8, S: 0.168}, '13': {L: 0.025, M: 75.0, S: 0.163}, '14': {L: 0.028, M: 76.1, S: 0.158}, '15': {L: 0.030, M: 77.2, S: 0.154}, '16': {L: 0.033, M: 78.2, S: 0.150}, '17': {L: 0.035, M: 79.2, S: 0.146}, '18': {L: 0.036, M: 80.2, S: 0.142}, '19': {L: 0.038, M: 81.2, S: 0.138}, '20': {L: 0.040, M: 82.1, S: 0.135}, '21': {L: 0.041, M: 83.0, S: 0.132}, '22': {L: 0.042, M: 83.9, S: 0.129}, '23': {L: 0.044, M: 84.8, S: 0.126}, '24': {L: 0.045, M: 85.7, S: 0.123},
+          },
+          'tbu': {
+            '24': {L: 0.045, M: 85.7, S: 0.123}, '25': {L: 0.046, M: 86.5, S: 0.120}, '26': {L: 0.047, M: 87.3, S: 0.117}, '27': {L: 0.048, M: 88.1, S: 0.114}, '28': {L: 0.049, M: 88.9, S: 0.111}, '29': {L: 0.050, M: 89.6, S: 0.108}, '30': {L: 0.051, M: 90.4, S: 0.106}, '31': {L: 0.051, M: 91.1, S: 0.104}, '32': {L: 0.052, M: 91.9, S: 0.102}, '33': {L: 0.053, M: 92.6, S: 0.100}, '34': {L: 0.053, M: 93.3, S: 0.098}, '35': {L: 0.054, M: 94.0, S: 0.096}, '36': {L: 0.054, M: 94.7, S: 0.094}, '37': {L: 0.055, M: 95.4, S: 0.092}, '38': {L: 0.055, M: 96.1, S: 0.090}, '39': {L: 0.056, M: 96.7, S: 0.088}, '40': {L: 0.056, M: 97.4, S: 0.086}, '41': {L: 0.056, M: 98.0, S: 0.084}, '42': {L: 0.057, M: 98.7, S: 0.082}, '43': {L: 0.057, M: 99.3, S: 0.081}, '44': {L: 0.057, M: 99.9, S: 0.079}, '45': {L: 0.057, M: 100.5, S: 0.078}, '46': {L: 0.058, M: 101.1, S: 0.076}, '47': {L: 0.058, M: 101.7, S: 0.075}, '48': {L: 0.058, M: 102.3, S: 0.073}, '49': {L: 0.058, M: 102.9, S: 0.072}, '50': {L: 0.058, M: 103.4, S: 0.071}, '51': {L: 0.059, M: 104.0, S: 0.069}, '52': {L: 0.059, M: 104.5, S: 0.068}, '53': {L: 0.059, M: 105.1, S: 0.067}, '54': {L: 0.059, M: 105.6, S: 0.066}, '55': {L: 0.059, M: 106.2, S: 0.064}, '56': {L: 0.059, M: 106.7, S: 0.063}, '57': {L: 0.059, M: 107.2, S: 0.062}, '58': {L: 0.060, M: 107.8, S: 0.061}, '59': {L: 0.060, M: 108.3, S: 0.060}, '60': {L: 0.060, M: 108.8, S: 0.059},
+          },
+        },
+      };
+      
+      const whoDataBMI = {
+          'Laki-laki': {
+              '24': {L: -0.163, M: 16.5, S: 0.081}, '25': {L: -0.162, M: 16.4, S: 0.082}, '26': {L: -0.161, M: 16.3, S: 0.083}, '27': {L: -0.160, M: 16.2, S: 0.084}, '28': {L: -0.158, M: 16.1, S: 0.085}, '29': {L: -0.157, M: 16.0, S: 0.086}, '30': {L: -0.156, M: 15.9, S: 0.087}, '31': {L: -0.154, M: 15.8, S: 0.088}, '32': {L: -0.153, M: 15.7, S: 0.089}, '33': {L: -0.152, M: 15.7, S: 0.090}, '34': {L: -0.151, M: 15.6, S: 0.091}, '35': {L: -0.150, M: 15.5, S: 0.092}, '36': {L: -0.149, M: 15.4, S: 0.093}, '37': {L: -0.147, M: 15.4, S: 0.094}, '38': {L: -0.146, M: 15.3, S: 0.095}, '39': {L: -0.145, M: 15.2, S: 0.096}, '40': {L: -0.144, M: 15.2, S: 0.097}, '41': {L: -0.143, M: 15.1, S: 0.098}, '42': {L: -0.142, M: 15.1, S: 0.099}, '43': {L: -0.141, M: 15.0, S: 0.100}, '44': {L: -0.140, M: 15.0, S: 0.101}, '45': {L: -0.139, M: 14.9, S: 0.102}, '46': {L: -0.138, M: 14.9, S: 0.103}, '47': {L: -0.137, M: 14.8, S: 0.104}, '48': {L: -0.136, M: 14.8, S: 0.105}, '49': {L: -0.135, M: 14.8, S: 0.106}, '50': {L: -0.134, M: 14.7, S: 0.107}, '51': {L: -0.133, M: 14.7, S: 0.108}, '52': {L: -0.132, M: 14.7, S: 0.109}, '53': {L: -0.131, M: 14.6, S: 0.110}, '54': {L: -0.130, M: 14.6, S: 0.111}, '55': {L: -0.129, M: 14.6, S: 0.112}, '56': {L: -0.128, M: 14.6, S: 0.113}, '57': {L: -0.127, M: 14.5, S: 0.114}, '58': {L: -0.126, M: 14.5, S: 0.115}, '59': {L: -0.125, M: 14.5, S: 0.116}, '60': {L: -0.124, M: 14.5, S: 0.117},
+          },
+          'Perempuan': {
+              '24': {L: -0.187, M: 16.3, S: 0.081}, '25': {L: -0.186, M: 16.2, S: 0.082}, '26': {L: -0.185, M: 16.1, S: 0.083}, '27': {L: -0.184, M: 16.0, S: 0.084}, '28': {L: -0.183, M: 15.9, S: 0.085}, '29': {L: -0.182, M: 15.8, S: 0.086}, '30': {L: -0.180, M: 15.7, S: 0.087}, '31': {L: -0.179, M: 15.6, S: 0.088}, '32': {L: -0.178, M: 15.5, S: 0.089}, '33': {L: -0.177, M: 15.4, S: 0.090}, '34': {L: -0.176, M: 15.3, S: 0.091}, '35': {L: -0.175, M: 15.2, S: 0.092}, '36': {L: -0.174, M: 15.2, S: 0.093}, '37': {L: -0.173, M: 15.1, S: 0.094}, '38': {L: -0.172, M: 15.0, S: 0.095}, '39': {L: -0.171, M: 15.0, S: 0.096}, '40': {L: -0.170, M: 14.9, S: 0.097}, '41': {L: -0.169, M: 14.9, S: 0.098}, '42': {L: -0.168, M: 14.8, S: 0.099}, '43': {L: -0.167, M: 14.8, S: 0.100}, '44': {L: -0.166, M: 14.7, S: 0.101}, '45': {L: -0.165, M: 14.7, S: 0.102}, '46': {L: -0.164, M: 14.7, S: 0.103}, '47': {L: -0.163, M: 14.6, S: 0.104}, '48': {L: -0.162, M: 14.6, S: 0.105}, '49': {L: -0.161, M: 14.6, S: 0.106}, '50': {L: -0.160, M: 14.5, S: 0.107}, '51': {L: -0.159, M: 14.5, S: 0.108}, '52': {L: -0.158, M: 14.5, S: 0.109}, '53': {L: -0.157, M: 14.5, S: 0.110}, '54': {L: -0.156, M: 14.5, S: 0.111}, '55': {L: -0.155, M: 14.4, S: 0.112}, '56': {L: -0.154, M: 14.4, S: 0.113}, '57': {L: -0.153, M: 14.4, S: 0.114}, '58': {L: -0.152, M: 14.4, S: 0.115}, '59': {L: -0.151, M: 14.4, S: 0.116}, '60': {L: -0.150, M: 14.4, S: 0.117},
+          }
+      }
+
+      // Dokumen referensi milestone berdasarkan usia
+      const milestoneData = {
+          '0-6': [
+              { id: 'm-1', description: 'Mengangkat kepala saat tengkurap' },
+              { id: 'm-2', description: 'Menanggapi suara dengan tawa' },
+              { id: 'm-3', description: 'Mencoba meraih mainan' },
+              { id: 'm-4', description: 'Berguling dari telentang ke tengkurap' },
+              { id: 'm-5', description: 'Mendengarkan dan melihat wajah' },
+              { id: 'm-6', description: 'Membuat suara seperti cooing dan babbling' }
+          ],
+          '7-12': [
+              { id: 'm-7', description: 'Duduk tanpa bantuan' },
+              { id: 'm-8', description: 'Merangkak' },
+              { id: 'm-9', description: 'Menarik diri untuk berdiri' },
+              { id: 'm-10', description: 'Melambaikan tangan "bye-bye"' },
+              { id: 'm-11', description: 'Menunjuk objek yang diinginkan' },
+              { id: 'm-12', description: 'Mengucapkan kata pertama' }
+          ],
+          '13-24': [
+              { id: 'm-13', description: 'Berjalan sendiri' },
+              { id: 'm-14', description: 'Mengikuti instruksi sederhana' },
+              { id: 'm-15', description: 'Mencoba menggunakan sendok atau garpu' },
+              { id: 'm-16', description: 'Menumpuk beberapa balok' },
+              { id: 'm-17', description: 'Menggabungkan dua kata menjadi kalimat' },
+              { id: 'm-18', description: 'Menirukan tindakan orang dewasa' }
+          ],
+          '25-36': [
+              { id: 'm-19', description: 'Berlari dengan stabil' },
+              { id: 'm-20', description: 'Menggambar garis atau lingkaran' },
+              { id: 'm-21', description: 'Mencuci tangan sendiri' },
+              { id: 'm-22', description: 'Mengidentifikasi gambar atau warna' },
+              { id: 'm-23', description: 'Bermain pura-pura' },
+              { id: 'm-24', description: 'Mengucapkan 200-300 kata' }
+          ],
+          '37-60': [
+              { id: 'm-25', description: 'Melompat dengan dua kaki' },
+              { id: 'm-26', description: 'Mengendarai sepeda roda tiga' },
+              { id: 'm-27', description: 'Membaca beberapa huruf' },
+              { id: 'm-28', description: 'Mengikuti aturan permainan sederhana' },
+              { id: 'm-29', description: 'Berteman dengan anak lain' },
+              { id: 'm-30', description: 'Menulis namanya sendiri' }
+          ]
+      };
+      
+      // NEW: Data edukasi untuk milestone
+      const milestoneEducation = {
+        '0-6': {
+          onTrack: `
+            <h3 class="text-xl font-semibold text-green-700">Tips Lanjutan untuk Anak Usia 0-6 Bulan</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Terus ajak anak berinteraksi dengan kontak mata dan senyuman.</li>
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Sediakan "waktu tengkurap" (tummy time) setiap hari untuk memperkuat otot leher dan punggungnya.</li>
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Bacakan buku dengan suara lantang dan bervariasi untuk mengenalkan bunyi bahasa.</li>
+            </ul>
+          `,
+          needsStimulation: `
+            <h3 class="text-xl font-semibold text-orange-700">Rekomendasi Stimulasi untuk Anak Usia 0-6 Bulan</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Tummy Time:** Letakkan anak di atas perutnya saat terjaga dan awasi. Gunakan mainan atau cermin untuk menarik perhatiannya agar ia mau mengangkat kepala.</li>
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Ajakan Bicara:** Ajak anak bicara sesering mungkin, tirukan suara yang ia buat, dan respon dengan antusias. Ini membangun fondasi komunikasi.</li>
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Stimulasi Visual & Auditorik:** Gunakan mainan dengan warna cerah dan suara bergemerincing untuk merangsang penglihatannya dan pendengarannya.</li>
+            </ul>
+          `
+        },
+        '7-12': {
+          onTrack: `
+            <h3 class="text-xl font-semibold text-green-700">Tips Lanjutan untuk Anak Usia 7-12 Bulan</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Beri anak kesempatan untuk bereksplorasi di lingkungan yang aman.</li>
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Ajak bermain petak umpet dengan mainan untuk melatih "object permanence".</li>
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Berikan makanan pendamping ASI dengan berbagai tekstur untuk melatih motorik halus dan sensoriknya.</li>
+            </ul>
+          `,
+          needsStimulation: `
+            <h3 class="text-xl font-semibold text-orange-700">Rekomendasi Stimulasi untuk Anak Usia 7-12 Bulan</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Latihan Duduk:** Letakkan mainan di depannya saat ia duduk untuk meningkatkan keseimbangannya.</li>
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Latihan Merangkak:** Buat terowongan kecil dari bantal atau beri jarak pada mainannya agar ia termotivasi untuk merangkak.</li>
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Perbendaharaan Kata:** Sebutkan nama-nama benda yang sering ia lihat (misalnya, "bola", "kucing", "ayah") dan tunjuk benda tersebut.</li>
+            </ul>
+          `
+        },
+        '13-24': {
+          onTrack: `
+            <h3 class="text-xl font-semibold text-green-700">Tips Lanjutan untuk Anak Usia 13-24 Bulan</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Ajak anak bermain peran (misalnya: bermain masak-masakan) untuk melatih imajinasi.</li>
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Beri pilihan sederhana, seperti "mau pakai baju merah atau biru?".</li>
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Libatkan anak dalam kegiatan sehari-hari, seperti membereskan mainannya.</li>
+            </ul>
+          `,
+          needsStimulation: `
+            <h3 class="text-xl font-semibold text-orange-700">Rekomendasi Stimulasi untuk Anak Usia 13-24 Bulan</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Latihan Berjalan:** Ajak anak berjalan di permukaan yang berbeda (rumput, pasir, karpet) untuk melatih keseimbangan.</li>
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Keterampilan Motorik Halus:** Ajak bermain mainan yang melibatkan koordinasi tangan, seperti menyusun balok atau memasukkan benda ke lubang.</li>
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Keterampilan Bahasa:** Ulangi kata-kata yang ia ucapkan dengan benar, dan dorong ia untuk menggunakan dua kata dalam satu kalimat.</li>
+            </ul>
+          `
+        },
+        '25-36': {
+          onTrack: `
+            <h3 class="text-xl font-semibold text-green-700">Tips Lanjutan untuk Anak Usia 25-36 Bulan</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Beri kesempatan anak untuk bermain bersama teman sebaya di taman atau area bermain.</li>
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Perkenalkan konsep berhitung dan huruf melalui lagu atau buku bergambar.</li>
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Ajak anak untuk membantu tugas rumah tangga yang sederhana.</li>
+            </ul>
+          `,
+          needsStimulation: `
+            <h3 class="text-xl font-semibold text-orange-700">Rekomendasi Stimulasi untuk Anak Usia 25-36 Bulan</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Keterampilan Fisik:** Ajak anak bermain bola, melompat, dan berlari di luar ruangan.</li>
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Keterampilan Bahasa:** Ajak anak untuk menceritakan apa yang ia lihat atau rasakan. Bacakan buku cerita interaktif.</li>
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Kemandirian:** Biarkan ia mencoba memakai baju atau sepatu sendiri, meskipun hasilnya tidak sempurna.</li>
+            </ul>
+          `
+        },
+        '37-60': {
+          onTrack: `
+            <h3 class="text-xl font-semibold text-green-700">Tips Lanjutan untuk Anak Usia 37-60 Bulan</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Dorong anak untuk bermain dengan teman sebaya secara terstruktur.</li>
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Tanyakan pertanyaan yang terbuka, seperti "Bagaimana harimu hari ini?"</li>
+                <li><i class="fas fa-check-circle text-green-500 mr-2"></i> Latih keterampilan motorik halus dengan melipat kertas, menggunting, atau mewarnai.</li>
+            </ul>
+          `,
+          needsStimulation: `
+            <h3 class="text-xl font-semibold text-orange-700">Rekomendasi Stimulasi untuk Anak Usia 37-60 Bulan</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Keterampilan Sosial:** Dorong anak untuk berbagi mainan dan bergantian saat bermain.</li>
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Keterampilan Kognitif:** Gunakan permainan puzzle, kartu, atau tebak-tebakan untuk melatih kemampuan berpikir logis.</li>
+                <li><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i> **Kemampuan Motorik:** Ajak anak bermain di luar, melompat, atau bermain ayunan untuk melatih keseimbangan dan koordinasi.</li>
+            </ul>
+          `
+        }
+      };
+
+      // Fungsi untuk menghitung usia anak dalam bulan
+      const getAgeInMonths = (birthDate, measurementDate = new Date()) => {
+        const diffInMs = measurementDate.getTime() - birthDate.getTime();
+        const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
+        return Math.floor(diffInDays / 30.44); // Rata-rata hari dalam sebulan
+      };
+
+      // Fungsi untuk menghitung Z-score
+      const calculateZScore = (value, L, M, S) => {
+        if (L === 0) {
+          return Math.log(value / M) / S;
+        }
+        return (((value / M) ** L) - 1) / (L * S);
+      };
+
+      // Fungsi untuk menentukan status gizi dari Z-score
+      const getNutritionalStatus = (zScore) => {
+        if (zScore > 3) return 'Obesitas';
+        if (zScore > 2) return 'Gizi Lebih';
+        if (zScore >= -2 && zScore <= 2) return 'Gizi Normal';
+        if (zScore < -2 && zScore >= -3) return 'Gizi Kurang';
+        if (zScore < -3) return 'Gizi Buruk';
+        return 'Status Tidak Diketahui';
+      };
+
+      // Fungsi untuk memuat daftar anak dari Firebase
+      const loadChildren = (userRole, userId) => {
+        const childList = document.getElementById("child-list");
+        const selectedChildDropdown = document.getElementById("selected-child-id");
+        childList.innerHTML = '<div class="text-center p-4"><i class="fas fa-spinner spinner text-pink-500 text-2xl"></i><p class="mt-2 text-gray-500">Memuat data...</p></div>';
+        selectedChildDropdown.innerHTML = '<option value="">Memuat...</option>';
+
+        let childQuery = db.collection("anak");
+
+        // Jika bukan admin, filter berdasarkan userId
+        if (userRole !== 'admin') {
+            childQuery = childQuery.where('userId', '==', userId);
+        }
+
+        childQuery.get().then((snapshot) => {
+          childList.innerHTML = "";
+          selectedChildDropdown.innerHTML = '<option value="">Pilih Anak</option>';
+
+          if (snapshot.empty) {
+            childList.innerHTML = '<p class="text-gray-500">Belum ada data anak.</p>';
+          } else {
+            snapshot.forEach((doc) => {
+              const childData = doc.data();
+              const childName = childData.nama;
+              const childId = doc.id;
+              
+              // Menambahkan ke daftar anak
+              childList.innerHTML += `<p class="font-medium flex items-center"><i class="fas fa-baby mr-2 text-pink-500"></i>${childName} (${childData.jenisKelamin}, Lahir: ${childData.tanggalLahir})</p>`;
+              
+              // Menambahkan ke dropdown pilihan anak
+              selectedChildDropdown.innerHTML += `<option value="${childId}">${childName}</option>`;
+            });
+          }
+        });
+      };
+      
+      let myGrowthChart = null;
+      let myZscoreChart = null;
+
+      const renderCharts = (childData) => {
+        const chartsContainer = document.getElementById('charts-container');
+        const spinner = document.getElementById('loading-spinner');
+        
+        chartsContainer.classList.add('hidden');
+        spinner.classList.remove('hidden');
+
+        setTimeout(() => { // Simulasi loading data
+          const measurements = childData.dataAntropometri.sort((a, b) => new Date(a.tanggalPengukuran) - new Date(b.tanggalPengukuran));
+          
+          // Data untuk Grafik Berat & Tinggi
+          const dates = measurements.map(d => d.tanggalPengukuran);
+          const beratBadanData = measurements.map(d => d.beratBadan);
+          const tinggiBadanData = measurements.map(d => d.tinggiBadan);
+          
+          // Data untuk Grafik Z-score
+          const zScoreData = measurements.map(d => {
+              const tanggalLahir = new Date(childData.tanggalLahir);
+              const tanggalPengukuran = new Date(d.tanggalPengukuran);
+              const usiaBulan = getAgeInMonths(tanggalLahir, tanggalPengukuran);
+              const jenisKelamin = childData.jenisKelamin;
+              
+              let bb_u_zscore = null;
+              let tb_u_zscore = null;
+              let imt_u_zscore = null;
+
+              if (whoData[jenisKelamin] && whoData[jenisKelamin].bbu[usiaBulan] && d.beratBadan) {
+                  const dataStandar = whoData[jenisKelamin].bbu[usiaBulan];
+                  bb_u_zscore = calculateZScore(d.beratBadan, dataStandar.L, dataStandar.M, dataStandar.S);
+              }
+
+              let dataKey;
+              if (usiaBulan < 24) {
+                dataKey = 'pbu';
+              } else if (usiaBulan >= 24 && usiaBulan <= 60) {
+                dataKey = 'tbu';
+                const imt = d.beratBadan / ((d.tinggiBadan / 100) ** 2);
+                if (whoDataBMI[jenisKelamin] && whoDataBMI[jenisKelamin][usiaBulan] && imt) {
+                  const dataStandarBMI = whoDataBMI[jenisKelamin][usiaBulan];
+                  imt_u_zscore = calculateZScore(imt, dataStandarBMI.L, dataStandarBMI.M, dataStandarBMI.S);
+                }
+              }
+
+              if (dataKey && whoData[jenisKelamin] && whoData[jenisKelamin][dataKey] && whoData[jenisKelamin][dataKey][usiaBulan] && d.tinggiBadan) {
+                  const dataStandar = whoData[jenisKelamin][dataKey][usiaBulan];
+                  tb_u_zscore = calculateZScore(d.tinggiBadan, dataStandar.L, dataStandar.M, dataStandar.S);
+              }
+
+              return {
+                  bb_u: bb_u_zscore,
+                  tb_u: tb_u_zscore,
+                  imt_u: imt_u_zscore
+              };
+          });
+
+          // Hapus chart yang lama jika ada
+          if (myGrowthChart) myGrowthChart.destroy();
+          if (myZscoreChart) myZscoreChart.destroy();
+
+          // Render Growth Chart
+          const ctxGrowth = document.getElementById('growthChart').getContext('2d');
+          myGrowthChart = new Chart(ctxGrowth, {
+            type: 'line',
+            data: {
+              labels: dates,
+              datasets: [
+                { label: 'Berat Badan (kg)', data: beratBadanData, borderColor: '#db2777', tension: 0.3, pointBackgroundColor: '#9333ea' },
+                { label: 'Tinggi Badan (cm)', data: tinggiBadanData, borderColor: '#6d28d9', tension: 0.3, pointBackgroundColor: '#9333ea' }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { position: 'top' } },
+              scales: {
+                x: { title: { display: true, text: 'Tanggal Pengukuran' } },
+                y: { title: { display: true, text: 'Nilai' } }
+              }
+            }
+          });
+
+          // Render Z-score Chart
+          const ctxZscore = document.getElementById('zscoreChart').getContext('2d');
+          myZscoreChart = new Chart(ctxZscore, {
+            type: 'line',
+            data: {
+              labels: dates,
+              datasets: [
+                { label: 'BB/U', data: zScoreData.map(d => d.bb_u), borderColor: '#ff0000', tension: 0.3, pointBackgroundColor: '#ff0000' },
+                { label: 'TB/U', data: zScoreData.map(d => d.tb_u), borderColor: '#0000ff', tension: 0.3, pointBackgroundColor: '#0000ff' },
+                { label: 'IMT/U', data: zScoreData.map(d => d.imt_u), borderColor: '#008000', tension: 0.3, pointBackgroundColor: '#008000' }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { position: 'top' } },
+              scales: {
+                x: { title: { display: true, text: 'Tanggal Pengukuran' } },
+                y: {
+                  title: { display: true, text: 'Z-Score' },
+                  ticks: { stepSize: 1 },
+                  suggestedMin: -4,
+                  suggestedMax: 4,
+                  grid: {
+                    drawBorder: true,
+                    color: (context) => {
+                      if (context.tick.value === 0) return '#4b5563'; // Garis 0 (Normal)
+                      if (context.tick.value === 2 || context.tick.value === -2) return '#f59e0b'; // Garis +/-2 (Warning)
+                      if (context.tick.value > 2 || context.tick.value < -2) return '#ef4444'; // Garis +/-3 (Critical)
+                      return 'rgba(0,0,0,0.1)';
+                    }
+                  }
+                }
+              }
+            }
+          });
+
+          // Mendapatkan data pengukuran terbaru dan menghitung status
+          if (measurements.length > 0) {
+              const latestData = measurements[measurements.length - 1];
+              const usiaBulan = getAgeInMonths(new Date(childData.tanggalLahir), new Date(latestData.tanggalPengukuran));
+              
+              let statusText = '';
+              let statusColor = '';
+
+              if (usiaBulan < 24) { // BB/U dan PB/U
+                  const bb_u_data = whoData[childData.jenisKelamin]['bbu'][usiaBulan];
+                  const pb_u_data = whoData[childData.jenisKelamin]['pbu'][usiaBulan];
+                  if (bb_u_data && pb_u_data) {
+                      const bb_u_zscore = calculateZScore(latestData.beratBadan, bb_u_data.L, bb_u_data.M, bb_u_data.S);
+                      const pb_u_zscore = calculateZScore(latestData.tinggiBadan, pb_u_data.L, pb_u_data.M, pb_u_data.S);
+                      const bb_u_status = getNutritionalStatus(bb_u_zscore);
+                      const pb_u_status = getNutritionalStatus(pb_u_zscore);
+
+                      statusText = `Status Gizi Terbaru (Usia ${usiaBulan} bulan):<br>
+                                    - **Berat Badan/Usia:** <span class="font-bold text-${getColor(bb_u_status)}-500">${bb_u_status}</span><br>
+                                    - **Panjang Badan/Usia:** <span class="font-bold text-${getColor(pb_u_status)}-500">${pb_u_status}</span>`;
+                  } else {
+                      statusText = "Data WHO untuk usia ini belum tersedia.";
+                  }
+              } else { // BB/U dan TB/U & IMT/U
+                  const bb_u_data = whoData[childData.jenisKelamin]['bbu'][usiaBulan];
+                  const tb_u_data = whoData[childData.jenisKelamin]['tbu'][usiaBulan];
+                  const imt_u_data = whoDataBMI[childData.jenisKelamin][usiaBulan];
+                  
+                  if (bb_u_data && tb_u_data && imt_u_data) {
+                    const bb_u_zscore = calculateZScore(latestData.beratBadan, bb_u_data.L, bb_u_data.M, bb_u_data.S);
+                    const tb_u_zscore = calculateZScore(latestData.tinggiBadan, tb_u_data.L, tb_u_data.M, tb_u_data.S);
+                    const imt = latestData.beratBadan / ((latestData.tinggiBadan / 100) ** 2);
+                    const imt_u_zscore = calculateZScore(imt, imt_u_data.L, imt_u_data.M, imt_u_data.S);
+                    
+                    const bb_u_status = getNutritionalStatus(bb_u_zscore);
+                    const tb_u_status = getNutritionalStatus(tb_u_zscore);
+                    const imt_u_status = getNutritionalStatus(imt_u_zscore);
+
+                    statusText = `Status Gizi Terbaru (Usia ${usiaBulan} bulan):<br>
+                                  - **Berat Badan/Usia:** <span class="font-bold text-${getColor(bb_u_status)}-500">${bb_u_status}</span><br>
+                                  - **Tinggi Badan/Usia:** <span class="font-bold text-${getColor(tb_u_status)}-500">${tb_u_status}</span><br>
+                                  - **IMT/Usia:** <span class="font-bold text-${getColor(imt_u_status)}-500">${imt_u_status}</span>`;
+                  } else {
+                    statusText = "Data WHO untuk usia ini belum tersedia.";
+                  }
+              }
+
+              // Fungsi bantu untuk mendapatkan warna berdasarkan status
+              function getColor(status) {
+                  switch (status) {
+                      case 'Gizi Buruk':
+                      case 'Obesitas':
+                          return 'red';
+                      case 'Gizi Kurang':
+                      case 'Gizi Lebih':
+                          return 'orange';
+                      case 'Gizi Normal':
+                          return 'green';
+                      default:
+                          return 'gray';
+                  }
+              }
+              
+              document.getElementById('status-gizi-text').innerHTML = statusText;
+          } else {
+              document.getElementById('status-gizi-text').innerHTML = '<i class="fas fa-info-circle mr-2"></i> Belum ada data pengukuran untuk anak ini.';
+          }
+          spinner.classList.add('hidden');
+          chartsContainer.classList.remove('hidden');
+        }, 500);
+      };
+
+      // Fungsi untuk memuat daftar milestone berdasarkan usia
+      const loadMilestones = async (childId, birthDate) => {
+        const milestoneList = document.getElementById('milestone-list');
+        const statusInfo = document.getElementById('milestone-status-info');
+        const progressSummary = document.getElementById('milestone-progress-summary');
+        const educationContent = document.getElementById('milestone-education-content');
+        
+        milestoneList.innerHTML = '<div class="text-center p-4"><i class="fas fa-spinner spinner text-pink-500 text-2xl"></i><p class="mt-2 text-gray-500">Memuat milestone...</p></div>';
+        educationContent.innerHTML = '';
+        progressSummary.classList.add('hidden');
+        
+        const usiaBulan = getAgeInMonths(new Date(birthDate));
+
+        let ageRangeKey;
+        if (usiaBulan >= 0 && usiaBulan <= 6) { ageRangeKey = '0-6'; }
+        else if (usiaBulan > 6 && usiaBulan <= 12) { ageRangeKey = '7-12'; }
+        else if (usiaBulan > 12 && usiaBulan <= 24) { ageRangeKey = '13-24'; }
+        else if (usiaBulan > 24 && usiaBulan <= 36) { ageRangeKey = '25-36'; }
+        else if (usiaBulan > 36 && usiaBulan <= 60) { ageRangeKey = '37-60'; }
+        else {
+          milestoneList.innerHTML = `<p class="text-gray-500">Fitur Milestone hanya tersedia untuk anak usia 0-60 bulan.</p>`;
+          statusInfo.innerHTML = `<i class="fas fa-info-circle mr-2"></i> Anak Anda berusia ${usiaBulan} bulan, di luar rentang yang didukung.`;
+          return;
+        }
+
+        const relevantMilestones = milestoneData[ageRangeKey];
+        if (!relevantMilestones) {
+          milestoneList.innerHTML = `<p class="text-gray-500">Data milestone untuk usia ${usiaBulan} bulan tidak ditemukan.</p>`;
+          return;
+        }
+
+        const childDocRef = db.collection('anak').doc(childId);
+        const childDoc = await childDocRef.get();
+        const completedMilestones = childDoc.data().milestones || [];
+
+        milestoneList.innerHTML = '';
+        
+        let completedCount = 0;
+        relevantMilestones.forEach(m => {
+          const isCompleted = completedMilestones.includes(m.id);
+          const icon = isCompleted ? 'fas fa-check-circle text-green-500' : 'far fa-circle text-gray-400';
+          if (isCompleted) {
+            completedCount++;
+          }
+          milestoneList.innerHTML += `
+            <div class="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg shadow-sm cursor-pointer hover:bg-gray-100 transition" data-milestone-id="${m.id}" data-is-completed="${isCompleted}">
+              <i class="${icon} text-lg"></i>
+              <span class="text-gray-700">${m.description}</span>
+            </div>
+          `;
+        });
+        
+        // NEW: Logika perhitungan status dan edukasi
+        const relevantMilestoneCount = relevantMilestones.length;
+        const completionPercentage = (completedCount / relevantMilestoneCount) * 100;
+        
+        let statusMessage, statusColor, educationText;
+        if (completionPercentage >= 70) {
+            statusMessage = `Perkembangan Sesuai Usia: ${completedCount} dari ${relevantMilestoneCount} milestone tercapai.`;
+            statusColor = 'bg-green-100 text-green-700';
+            educationText = milestoneEducation[ageRangeKey].onTrack;
+        } else {
+            statusMessage = `Waspada, Perlu Stimulasi Lebih: ${completedCount} dari ${relevantMilestoneCount} milestone tercapai.`;
+            statusColor = 'bg-orange-100 text-orange-700';
+            educationText = milestoneEducation[ageRangeKey].needsStimulation;
+        }
+        
+        // Menampilkan status
+        progressSummary.innerHTML = `<i class="fas fa-info-circle mr-2"></i>${statusMessage}`;
+        progressSummary.className = `p-4 font-semibold rounded-md ${statusColor}`;
+        progressSummary.classList.remove('hidden');
+        
+        // Menampilkan edukasi
+        educationContent.innerHTML = educationText;
+
+        // Tambahkan event listener untuk milestone
+        milestoneList.querySelectorAll('[data-milestone-id]').forEach(item => {
+          item.addEventListener('click', async () => {
+            const milestoneId = item.dataset.milestoneId;
+            const isCompleted = item.dataset.isCompleted === 'true';
+
+            let newMilestones;
+            if (isCompleted) {
+              newMilestones = completedMilestones.filter(id => id !== milestoneId);
+            } else {
+              newMilestones = [...completedMilestones, milestoneId];
+            }
+
+            await childDocRef.update({
+              milestones: newMilestones
+            });
+
+            // Muat ulang milestone untuk menampilkan perubahan
+            await loadMilestones(childId, birthDate);
+          });
+        });
+
+      };
+
+      // Fungsi untuk memuat data edukasi
+      const loadEducation = async (childId, birthDate) => {
+        const edukasiContent = document.getElementById('edukasi-content');
+        edukasiContent.innerHTML = '<div class="text-center p-4"><i class="fas fa-spinner spinner text-pink-500 text-2xl"></i><p class="mt-2 text-gray-500">Memuat edukasi...</p></div>';
+        
+        if (!childId) {
+            edukasiContent.innerHTML = `<p class="p-4 bg-gray-50 rounded-md text-gray-700"><i class="fas fa-info-circle mr-2"></i>Pilih anak untuk mendapatkan rekomendasi edukasi gizi.</p>`;
+            return;
+        }
+
+        const childDocRef = db.collection('anak').doc(childId);
+        const childDoc = await childDocRef.get();
+        const childData = childDoc.data();
+        const measurements = childData.dataAntropometri || [];
+        
+        if (measurements.length === 0) {
+            edukasiContent.innerHTML = `<p class="p-4 bg-gray-50 rounded-md text-gray-700"><i class="fas fa-info-circle mr-2"></i>Belum ada data antropometri untuk anak ini. Silakan input data untuk mendapatkan rekomendasi.</p>`;
+            return;
+        }
+        
+        const latestData = measurements.sort((a,b) => new Date(b.tanggalPengukuran) - new Date(a.tanggalPengukuran))[0];
+        const usiaBulan = getAgeInMonths(new Date(childData.tanggalLahir), new Date(latestData.tanggalPengukuran));
+        
+        let statusGizi, statusGiziText;
+        if (usiaBulan < 24) {
+          const bb_u_data = whoData[childData.jenisKelamin]['bbu'][usiaBulan];
+          const bb_u_zscore = calculateZScore(latestData.beratBadan, bb_u_data.L, bb_u_data.M, bb_u_data.S);
+          statusGizi = getNutritionalStatus(bb_u_zscore);
+          statusGiziText = `**Berat Badan/Usia:** ${statusGizi}`;
+        } else {
+          const imt = latestData.beratBadan / ((latestData.tinggiBadan / 100) ** 2);
+          const imt_u_data = whoDataBMI[childData.jenisKelamin][usiaBulan];
+          const imt_u_zscore = calculateZScore(imt, imt_u_data.L, imt_u_data.M, imt_u_data.S);
+          statusGizi = getNutritionalStatus(imt_u_zscore);
+          statusGiziText = `**IMT/Usia:** ${statusGizi}`;
+        }
+
+        let rekomendasi = '';
+        let educationHtml = `
+          <h3 class="text-xl font-semibold text-gray-800 mb-4">Rekomendasi Gizi untuk Anak ${childData.nama}</h3>
+          <p class="mb-4">Berdasarkan data terakhir (<span class="font-medium">${latestData.tanggalPengukuran}</span>), status gizi anak Anda adalah:</p>
+          <div class="p-4 rounded-lg bg-gray-100 mb-6">
+            <p class="font-semibold text-lg text-${getColor(statusGizi)}-500">${statusGizi}</p>
+          </div>
+        `;
+
+        switch(statusGizi) {
+            case 'Gizi Normal':
+                rekomendasi = `
+                  <p>Selamat! Anak Anda memiliki status gizi normal. Terus pertahankan pola makan seimbang dan berikan stimulasi yang sesuai usia.</p>
+                  <ul class="list-disc list-inside space-y-2 mt-4">
+                      <li>Pastikan anak mendapatkan variasi makanan dari 4 bintang (karbohidrat, protein hewani, protein nabati, sayur dan buah).</li>
+                      <li>Jadwalkan makan utama dan camilan secara teratur. Hindari memberi makan di luar jadwal.</li>
+                      <li>Ajak anak aktif bergerak dan bermain untuk mendukung perkembangan fisiknya.</li>
+                  </ul>
+                `;
+                break;
+            case 'Gizi Kurang':
+                rekomendasi = `
+                  <p>Anak Anda perlu perhatian gizi lebih. Fokus pada peningkatan asupan kalori dan protein.</p>
+                  <ul class="list-disc list-inside space-y-2 mt-4">
+                      <li>Tingkatkan porsi makan atau frekuensi makan menjadi lebih sering.</li>
+                      <li>Berikan makanan padat kalori dan protein seperti daging, telur, keju, dan alpukat.</li>
+                      <li>Hindari makanan dan minuman manis yang tidak bernutrisi.</li>
+                  </ul>
+                `;
+                break;
+            case 'Gizi Buruk':
+                rekomendasi = `
+                  <p>Status gizi anak Anda masuk kategori gizi buruk. **Segera konsultasikan dengan dokter atau ahli gizi anak** untuk penanganan yang tepat dan intensif.</p>
+                  <ul class="list-disc list-inside space-y-2 mt-4">
+                      <li>Perlu evaluasi medis untuk mencari tahu penyebabnya.</li>
+                      <li>Ikuti panduan dari profesional kesehatan untuk diet khusus.</li>
+                      <li>Jangan tunda penanganan, karena ini adalah kondisi serius yang membutuhkan intervensi segera.</li>
+                  </ul>
+                `;
+                break;
+            case 'Gizi Lebih':
+            case 'Obesitas':
+                rekomendasi = `
+                  <p>Anak Anda memiliki status gizi lebih. Perlu penyesuaian pola makan dan aktivitas fisik.</p>
+                  <ul class="list-disc list-inside space-y-2 mt-4">
+                      <li>Batasi makanan tinggi gula dan lemak, seperti camilan instan dan minuman kemasan.</li>
+                      <li>Ajak anak untuk lebih banyak bergerak. Batasi waktu bermain gadget.</li>
+                      <li>Perkenalkan sayuran dan buah-buahan sebagai camilan sehat.</li>
+                  </ul>
+                `;
+                break;
+            default:
+                rekomendasi = `<p>Tidak ada rekomendasi spesifik untuk status gizi ini.</p>`;
+                break;
+        }
+
+        educationHtml += `
+          <h3 class="text-xl font-semibold text-gray-800 mb-4">Rekomendasi Tindakan</h3>
+          <div class="p-4 bg-white rounded-lg shadow-lg">
+            ${rekomendasi}
+          </div>
+        `;
+
+        edukasiContent.innerHTML = educationHtml;
+
+        function getColor(status) {
+            switch (status) {
+                case 'Gizi Buruk':
+                case 'Obesitas':
+                    return 'red';
+                case 'Gizi Kurang':
+                case 'Gizi Lebih':
+                    return 'orange';
+                case 'Gizi Normal':
+                    return 'green';
+                default:
+                    return 'gray';
+            }
+        }
+      };
+
+
+      // Event Listeners
+      document.addEventListener('DOMContentLoaded', () => {
+        auth.onAuthStateChanged(user => {
+          const authContainer = document.getElementById('authContainer');
+          const appContent = document.getElementById('appContent');
+          const userEmailSpan = document.getElementById('userEmailSpan');
+          
+          if (user) {
+            // User logged in
+            authContainer.style.display = 'none';
+            appContent.style.display = 'block';
+            userEmailSpan.textContent = user.email;
+            
+            // Check user role
+            db.collection('users').doc(user.uid).get().then(doc => {
+              const userData = doc.data();
+              const userRole = userData ? userData.role : 'user';
+              if (userRole === 'admin') {
+                document.getElementById('tab-daftar-anak').classList.remove('hidden');
+              }
+              // Muat data anak setelah role diketahui
+              loadChildren(userRole, user.uid);
+            });
+            
+          } else {
+            // User logged out
+            authContainer.style.display = 'flex';
+            appContent.style.display = 'none';
+          }
+        });
+
+        // Tab Switching Logic
+        const tabs = ['input-anak', 'input-antropometri', 'grafik', 'milestone', 'edukasi', 'daftar-anak'];
+        tabs.forEach(tab => {
+          document.getElementById(`tab-${tab}`).addEventListener('click', () => {
+            tabs.forEach(t => {
+              const page = document.getElementById(`page-${t}`);
+              const button = document.getElementById(`tab-${t}`);
+              page.classList.add('hidden');
+              button.classList.remove('bg-white', 'shadow-md', 'border', 'border-b-0');
+              button.classList.add('text-gray-500', 'hover:text-gray-700');
+            });
+            document.getElementById(`page-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).classList.add('bg-white', 'shadow-md', 'border', 'border-b-0');
+            document.getElementById(`tab-${tab}`).classList.remove('text-gray-500', 'hover:text-gray-700');
+          });
+        });
+
+        // Login & Register
+        document.getElementById('loginBtn').addEventListener('click', async (e) => {
+          e.preventDefault();
+          const email = document.getElementById('authEmail').value;
+          const password = document.getElementById('authPassword').value;
+          try {
+            await auth.signInWithEmailAndPassword(email, password);
+            alert("Login berhasil!");
+          } catch (error) {
+            alert(`Login gagal: ${error.message}`);
+          }
+        });
+
+        document.getElementById('registerBtn').addEventListener('click', async (e) => {
+          e.preventDefault();
+          const email = document.getElementById('authEmail').value;
+          const password = document.getElementById('authPassword').value;
+          try {
+            const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+            await db.collection('users').doc(userCredential.user.uid).set({
+                email: email,
+                role: 'user'
+            });
+            alert("Pendaftaran berhasil! Anda sekarang bisa login.");
+          } catch (error) {
+            alert(`Pendaftaran gagal: ${error.message}`);
+          }
+        });
+
+        // Logout
+        document.getElementById('logoutLink').addEventListener('click', async (e) => {
+          e.preventDefault();
+          try {
+            await auth.signOut();
+            alert("Anda telah logout.");
+            window.location.reload();
+          } catch (error) {
+            alert(`Logout gagal: ${error.message}`);
+          }
+        });
+
+        // Child Data Form
+        document.getElementById('child-data-form').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const nama = document.getElementById('nama-anak').value;
+          const tanggalLahir = document.getElementById('tanggal-lahir').value;
+          const jenisKelamin = document.getElementById('jenis-kelamin').value;
+          const user = auth.currentUser;
+          
+          if (!user) {
+              alert("Silakan login terlebih dahulu.");
+              return;
+          }
+
+          try {
+            await db.collection("anak").add({
+              userId: user.uid,
+              nama: nama,
+              tanggalLahir: tanggalLahir,
+              jenisKelamin: jenisKelamin,
+              dataAntropometri: [],
+              milestones: [] // Inisialisasi array milestones
+            });
+            alert("Data anak berhasil disimpan!");
+            document.getElementById('child-data-form').reset();
+            loadChildren(null, user.uid);
+          } catch (e) {
+            alert("Gagal menyimpan data anak: " + e.message);
+          }
+        });
+
+        // Antropometri Form
+        document.getElementById('antropometri-form').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const childId = document.getElementById('selected-child-id').value;
+          if (!childId) {
+            alert("Pilih anak terlebih dahulu.");
+            return;
+          }
+          const tanggalPengukuran = document.getElementById('tanggal-pengukuran').value;
+          const beratBadan = parseFloat(document.getElementById('berat-badan').value);
+          const tinggiBadan = parseFloat(document.getElementById('tinggi-badan').value);
+          const lingkarKepala = parseFloat(document.getElementById('lingkar-kepala').value);
+
+          const newMeasurement = {
+            tanggalPengukuran,
+            beratBadan,
+            tinggiBadan,
+            lingkarKepala
+          };
+
+          try {
+            const docRef = db.collection('anak').doc(childId);
+            const doc = await docRef.get();
+            const childData = doc.data();
+            const newDataAntropometri = [...(childData.dataAntropometri || []), newMeasurement];
+
+            await docRef.update({
+              dataAntropometri: newDataAntropometri
+            });
+            alert("Data antropometri berhasil ditambahkan!");
+            document.getElementById('antropometri-form').reset();
+            // Setelah menyimpan data, alihkan ke tab grafik dan muat ulang grafiknya
+            document.getElementById('tab-grafik').click();
+            const updatedChildData = (await docRef.get()).data();
+            await renderCharts(updatedChildData);
+            await loadEducation(childId, updatedChildData.tanggalLahir);
+          } catch (e) {
+            alert("Gagal menambahkan data antropometri: " + e.message);
+          }
+        });
+
+        // Event listener untuk dropdown anak
+        document.getElementById('selected-child-id').addEventListener('change', async (e) => {
+            const childId = e.target.value;
+            
+            if (childId) {
+                const docRef = db.collection('anak').doc(childId);
+                const childDoc = await docRef.get();
+                const childData = childDoc.data();
+                
+                // Panggil semua fungsi pemuatan konten di sini
+                // Ini memastikan semua data dimuat terlepas dari tab yang aktif
+                await renderCharts(childData);
+                await loadEducation(childId, childData.tanggalLahir);
+                await loadMilestones(childId, childData.tanggalLahir);
+
+            } else {
+                // Reset tampilan jika tidak ada anak yang dipilih
+                if (myGrowthChart) myGrowthChart.destroy();
+                if (myZscoreChart) myZscoreChart.destroy();
+                document.getElementById('status-gizi-text').innerHTML = '<i class="fas fa-info-circle mr-2"></i> Pilih anak untuk menampilkan status gizi terbaru.';
+                document.getElementById('edukasi-content').innerHTML = `<p class="p-4 bg-gray-50 rounded-md text-gray-700"><i class="fas fa-info-circle mr-2"></i>Pilih anak untuk mendapatkan rekomendasi edukasi gizi.</p>`;
+                document.getElementById('milestone-status-info').innerHTML = `<i class="fas fa-info-circle mr-2"></i> Pilih anak untuk melihat dan mencatat pencapaiannya.`;
+                document.getElementById('milestone-list').innerHTML = '';
+                document.getElementById('milestone-progress-summary').classList.add('hidden');
+                document.getElementById('milestone-education-content').innerHTML = '';
+            }
+        });
+
+      });
+    </script>
+</body>
+</html>
